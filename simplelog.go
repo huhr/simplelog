@@ -239,9 +239,9 @@ func (l *DomobLogger)cut_log(config Config, level int, hourly bool) {
 
 		//wake up to cut the log file
 		files := []string{config.Debug.File, config.Info.File, config.Warn.File, config.Error.File, config.Fatal.File}
-		name := fmt.Sprintf("%s.%s", files[level], time.Now().Format("20060102"))
+		name := fmt.Sprintf("%s.%s", files[level], time.Now().AddDate(0, 0, -1).Format("20060102"))
 		if hourly {
-			name = fmt.Sprintf("%s.%s", files[level], time.Now().Format("2006010215"))
+			name = fmt.Sprintf("%s.%s", files[level], time.Now().Add((-1)*time.Hour).Format("2006010215"))
 		}
 		os.Rename(files[level], name)
 		l.out[level], _ = os.Create(files[level])
