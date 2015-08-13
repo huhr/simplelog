@@ -1,36 +1,37 @@
-//auther  huhaoran<huhaoran@domob.com>
-//log.go
+// Auther huhaoran<huhaoran@domob.com>
 package simplelog
 
 import (
-	"time"
+	"strings"
 	"fmt"
-	"runtime"
-	"path"
-	"os"
-	"sync"
 	"io"
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"path"
+	"runtime"
+	"sync"
+	"time"
 )
 
-
-//define format
+// Define format
 const (
-	//[log_level] [time] [filename]:[line] [message]
-	TEXT_FORMAT = "%s %s %s:%d :: %s \n"
-	//[message]
+	// [log_level] [time] [filename]:[line] [message]
+	DETAIL_FORMAT = "%s %s %s:%d :: %s \n"
+	// [message]
 	BRIFE_FORMAT = "%s \n"
 )
 
-//define level
+// Define level
 const (
-	LEVEL_DEBUG=iota
+	LEVEL_DEBUG = iota
 	LEVEL_INFO
 	LEVEL_WARN
 	LEVEL_ERROR
 	LEVEL_FATAL
 )
 
-//define level string
+// Define level string
 var LEVEL_STRINGS = [...]string{
 	"debug",
 	"info",
@@ -39,223 +40,170 @@ var LEVEL_STRINGS = [...]string{
 	"fatal",
 }
 
-//DomobLogger just for golang
-type DomobLogger struct {
-	mu         sync.Mutex
-	//every level can hold it`s out
-	out        map[int]io.Writer
-	level      int
-	//every level can hold it`s format
-	//default os.Stdout
-	format     map[int]string
+// SimpleLogger just for golang
+type SimpleLogger struct {
+	// every level can hold it`s out
+	writers   map[int]*LogWriter
 }
 
-func (l *DomobLogger)SetLevel(level int) {
-	l.level = level
-}
-
-func NewDomobLogger() DomobLogger{
-	l := DomobLogger{}
-	//Debug, Info, Warn, Error, Fatal
-	l.format = make(map[int]string, 5)
-	l.out = make(map[int]io.Writer, 5)
+func NewSimpleLogger() SimpleLogger {
+	l := SimpleLogger{}
+	// Debug, Info, Warn, Error, Fatal
+	l.writers = make(map[int]*LogWriter, 0)
 	return l
 }
 
-func (l *DomobLogger)Output(level int, message string) {
-	if level < l.level {
-		return
+func (l *SimpleLogger) Debug(format string, v ...interface{}) {
+	if writer, ok := l.writers[LEVEL_DEBUG]; ok {
+		writer.Output(LEVEL_DEBUG, fmt.Sprintf(format, v...))
 	}
+}
 
-	// first select the Format of the log
+func (l *SimpleLogger) Info(format string, v ...interface{}) {
+	if writer, ok := l.writers[LEVEL_DEBUG]; ok {
+		writer.Output(LEVEL_INFO, fmt.Sprintf(format, v...))
+	}
+}
+
+func (l *SimpleLogger) Warn(format string, v ...interface{}) {
+	if writer, ok := l.writers[LEVEL_WARN]; ok {
+		writer.Output(LEVEL_WARN, fmt.Sprintf(format, v...))
+	}
+}
+
+func (l *SimpleLogger) Error(format string, v ...interface{}) {
+	if writer, ok := l.writers[LEVEL_ERROR]; ok {
+		writer.Output(LEVEL_ERROR, fmt.Sprintf(format, v...))
+	}
+}
+
+func (l *SimpleLogger) Fatal(format string, v ...interface{}) {
+	if writer, ok := l.writers[LEVEL_FATAL]; ok {
+		writer.Output(LEVEL_FATAL, fmt.Sprintf(format, v...))
+	}
+}
+
+// load configration from json file
+func (l *SimpleLogger) LoadConfiguration(filename string) {
+	cfgs := l.readConfiguration(filename)
+	for _, cfg := range cfgs {
+		writer := NewLogWriter(cfg["Out"], cfg["Format"], cfg["Cut"])
+		for levelIndex, levelStr := range LEVEL_STRINGS {
+			if strings.Contains(cfg["Level"], levelStr) {
+				l.writers[levelIndex] = writer
+			}
+		}
+	}
+}
+
+// read config file into map 
+func (l SimpleLogger) readConfiguration(filename string) (cfg []map[string]string) {
+	f, err := os.Open(filename)
+	if err != nil {
+		panic(err.Error())
+	}
+	defer f.Close()
+	src, err := ioutil.ReadAll(f)
+	if err != nil {
+		panic(err.Error())
+	}
+	err = json.Unmarshal(src, &cfg)
+	if err != nil {
+		panic(err.Error())
+	}
+	return cfg
+}
+
+// LogWriter
+type LogWriter struct {
+	sync.Mutex
+	filename  string
+	format    string
+	cutType   string
+	writer    io.Writer
+}
+
+func NewLogWriter(filename, format, cutType string) *LogWriter {
+	var writer io.Writer
+	switch filename {
+	case "stdout":
+		writer = os.Stdout
+	case "stderr":
+		writer = os.Stderr
+	default:
+		writer = func() (w io.Writer) {
+			if _, err := os.Stat(filename); os.IsNotExist(err) {
+				w, err = os.Create(filename)
+				if err != nil {
+					panic(err.Error())
+				}
+			} else {
+				w, err = os.OpenFile(filename, os.O_APPEND|os.O_WRONLY, 0600)
+				if err != nil {
+					panic(err.Error())
+				}
+			}
+			return
+		}()
+	}
+	w := &LogWriter{sync.Mutex{},filename, format, cutType, writer}
+	go w.cutLog()
+	return w
+}
+
+func (w *LogWriter) Output(level int, msg string) {
 	var log string
-	switch l.format[level] {
-	case TEXT_FORMAT:
+	switch w.format {
+	case "detail":
 		time_str := fmt.Sprintf("%s", time.Now())[:19]
 		// skip three
 		// here we get the filename so we need not to name the logger
 		_, filename, line, _ := runtime.Caller(3)
 		_, filename = path.Split(filename)
-		log = fmt.Sprintf(TEXT_FORMAT, LEVEL_STRINGS[level], time_str, filename, line, message)
-	case BRIFE_FORMAT:
-		log = fmt.Sprintf(BRIFE_FORMAT, message)
+		log = fmt.Sprintf(DETAIL_FORMAT, LEVEL_STRINGS[level], time_str, filename, line, msg)
+	case "brife":
+		log = fmt.Sprintf(BRIFE_FORMAT, msg)
 	default:
 		panic("there is no format")
 	}
-
 	// lock the func
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	_ ,err := l.out[level].Write([]byte(log))
-	if err !=nil {
+	w.Lock()
+	defer w.Unlock()
+	_, err := w.writer.Write([]byte(log))
+	if err != nil {
 		fmt.Println(err.Error())
 	}
 }
 
-func (l *DomobLogger) Debug(format string, v ...interface{}) {
-	l.Output(LEVEL_DEBUG, fmt.Sprintf(format, v ...))
-}
-
-func (l *DomobLogger) Info(format string, v ...interface{}) {
-	l.Output(LEVEL_INFO, fmt.Sprintf(format, v ...))
-}
-
-func (l *DomobLogger) Warn(format string, v ...interface{}) {
-	l.Output(LEVEL_WARN, fmt.Sprintf(format, v ...))
-}
-
-func (l *DomobLogger) Error(format string, v ...interface{}) {
-	l.Output(LEVEL_ERROR, fmt.Sprintf(format, v ...))
-}
-
-func (l *DomobLogger) Fatal(format string, v ...interface{}) {
-	l.Output(LEVEL_FATAL, fmt.Sprintf(format, v ...))
-}
-
-// load configration from .cfg file
-func (l *DomobLogger) LoadConfiguration(config Config) {
-	//first set level
-	switch config.Basic.Level {
-	case "DEBUG":
-		l.SetLevel(LEVEL_DEBUG)
-	case "INFO":
-		l.SetLevel(LEVEL_INFO)
-	case "WARN":
-		l.SetLevel(LEVEL_WARN)
-	case "ERROR":
-		l.SetLevel(LEVEL_ERROR)
-	case "FATAL":
-		l.SetLevel(LEVEL_FATAL)
-	default:
-		//this may print out the screen use the TEXT_FORMAT or >> to he console file
-		l.Info("default log level DEBUG")
-		l.SetLevel(LEVEL_DEBUG)
-	}
-
-	//second set format for each level
-	for k, format := range []string{config.Debug.Format, config.Info.Format, config.Warn.Format, config.Error.Format, config.Fatal.Format} {
-		switch format {
-		case "TEXT":
-			l.format[k] = TEXT_FORMAT
-		case "BRIFE":
-			l.format[k] = BRIFE_FORMAT
-		default:
-			l.format[k] = TEXT_FORMAT
-		}
-	}
-
-	//then set io.Writer for each level
-	for k, file := range []string{config.Debug.File, config.Info.File, config.Warn.File, config.Error.File, config.Fatal.File} {
-		if file != "" {
-			if _, err := os.Stat(file); os.IsNotExist(err) {
-				l.out[k], err = os.Create(file)
-				if err != nil {
-					panic(err.Error())
-				}
-			}else {
-				l.out[k], err = os.OpenFile(file, os.O_APPEND|os.O_WRONLY, 0600)
-				if err != nil {
-					panic(err.Error())
-				}
-			}
-		}else {
-			l.out[k] = os.Stdout
-		}
-	}
-
-	//finally start go goroutinue to cut the log
-	for k, hourly := range [][]bool{[]bool{config.Debug.Hourly, config.Debug.Daily}, []bool{config.Info.Hourly, config.Info.Daily},
-		[]bool{config.Warn.Hourly, config.Warn.Daily}, []bool{config.Error.Hourly, config.Error.Daily},
-		[]bool{config.Fatal.Hourly, config.Fatal.Daily}} {
-
-		if hourly[0] {
-			go l.cut_log(config, k, true)
-		} else if hourly[1] {
-			go l.cut_log(config, k, false)
-		}else {
-			l.Output(k, "log file will not be cutted")
-		}
-	}
-}
-
-// Basic中保存缺省的配置和日志等级的控制
-// 每个级别单独配置输出文件，format和切割控制
-type Config struct {
-	Basic struct {
-		Level     string
-	}
-
-	Info struct {
-		File      string
-		Hourly    bool
-		Daily     bool
-		Format   string
-	}
-
-	Debug struct {
-		File      string
-		Hourly    bool
-		Daily     bool
-		Format   string
-	}
-
-	Warn struct {
-		File      string
-		Hourly    bool
-		Daily     bool
-		Format   string
-	}
-
-	Error struct {
-		File      string
-		Hourly    bool
-		Daily     bool
-		Format   string
-	}
-
-	Fatal struct {
-		File      string
-		Hourly    bool
-		Daily     bool
-		Format   string
-	}
-}
-
-func NewConfig(file string, hourly, daily bool, level, format string)  Config{
-	config := Config{}
-	config.Basic.Level = level
-	config.Debug.File = file
-	config.Debug.Hourly = hourly
-	config.Debug.Daily = daily
-	config.Debug.Format = format
-	return config
-}
-
-//cut_log hourly or daily
-func (l *DomobLogger)cut_log(config Config, level int, hourly bool) {
+// cut by hourly or daily
+func (w *LogWriter) cutLog() {
 	for {
-		//sleep
-		time.Sleep(time.Duration(getInterval(hourly))*time.Second)
-
-		//wake up to cut the log file
-		files := []string{config.Debug.File, config.Info.File, config.Warn.File, config.Error.File, config.Fatal.File}
-		name := fmt.Sprintf("%s.%s", files[level], time.Now().AddDate(0, 0, -1).Format("20060102"))
-		if hourly {
-			name = fmt.Sprintf("%s.%s", files[level], time.Now().Add((-1)*time.Hour).Format("2006010215"))
+		var (
+			t int64
+			name string
+		)
+		now := time.Now()
+		switch w.cutType {
+		case "daily":
+			t = time.Unix(time.Now().Unix() + 3600, 0).Round(time.Hour).Unix() - now.Unix() + 1
+			name = fmt.Sprintf("%s.%s", w.filename, time.Now().Format("20060102"))
+		case "hourly":
+			y, m, d := now.AddDate(0, 0, 1).Date()
+			t = time.Date(y, m, d, 0, 0, 1, 0, time.Local).Unix() - now.Unix() + 1
+			name = fmt.Sprintf("%s.%s", w.filename, time.Now().Format("2006010215"))
+		default:
+			return
 		}
-		os.Rename(files[level], name)
-		l.out[level], _ = os.Create(files[level])
-	}
-}
-//get the sleep time interval
-func getInterval(hourly bool) int64 {
-	now := time.Now()
-	if hourly {
-		cut_time := time.Unix(time.Now().Unix() + 3600, 0).Round(time.Hour)
-		return cut_time.Unix() - now.Unix() + 1
-	}else {
-		y,m,d := now.AddDate(0,0,1).Date()
-		cut_time := time.Date(y,m,d, 0, 0, 1, 0, time.Local)
-		return cut_time.Unix() - now.Unix() + 1
+		// sleep
+		time.Sleep(time.Duration(t) * time.Second)
+
+		// wake up and mv the log file
+		os.Rename(w.filename, name)
+		writer, err := os.Create(w.filename)
+		if err != nil {
+			fmt.Printf("create new log file error: %s", err.Error())
+			continue
+		}
+		w.writer = writer
 	}
 }

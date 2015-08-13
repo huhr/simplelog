@@ -4,15 +4,15 @@ package simplelog
 import ()
 
 var (
-	Global DomobLogger
+	Global SimpleLogger
 )
 
 func init() {
-	Global = NewDomobLogger()
+	Global = NewSimpleLogger()
 }
 
-func LoadConfiguration(config Config) {
-	Global.LoadConfiguration(config)
+func LoadConfiguration(filename string) {
+	Global.LoadConfiguration(filename)
 }
 
 func Debug(format string, v ...interface{}) {

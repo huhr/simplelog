@@ -1,0 +1,14 @@
+[
+	{
+		"Level": "info, debug, warn",
+		"Out": "logs/server.debug",
+		"Cut":"daily", 
+		"Format": "detail"
+	},
+	{
+		"Level": "error, fatal",
+		"Out": "stderr",
+		"Cut":"daily",
+		"Format": "brife"
+	}
+]
