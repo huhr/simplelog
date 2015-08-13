@@ -5,8 +5,8 @@
 SimpleLog使用json格式的配置文件，可读性较高同时也比较容易
 解析。
 
-json配置文件中可以配置多个节点，这里一个节点可以表示一个日志输出目标，每个节点包含四个配置项：    
-Level：指该节点所处理的日志级别，可选为关键字为info，debug，warn，error，fatal。注意区分大小写    
+json配置文件中可以配置多个节点，一个节点表示一个日志输出目标，每个节点包含四个配置项：    
+Level：该节点所处理的日志级别，可选关键字为info，debug，warn，error，fatal。注意区分大小写    
 Out：节点对应日志级别输出目标，stdout，stderr，以及输出文件。    
 Cut：节点输出文件时，文件切割选项，目前支持hourly，daily，以及不切割。    
 Format：指节点输出的日志格式，目前支持两种，detail和brife，格式分别为   
