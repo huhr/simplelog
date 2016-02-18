@@ -1,0 +1,30 @@
+{
+	"root": [
+		{
+			"Level": "info, debug, warn",
+			"Output": "root.log",
+			"Rotation":"daily", 
+			"Format": "detail"
+		},
+		{
+			"Level": "error, fatal, debug",
+			"Output": "root.log",
+			"Rotation":"daily",
+			"Format": "detail"
+		}
+	],
+	"another": [
+		{
+			"Level": "info, debug, warn",
+			"Output": "another.log",
+			"Rotation":"daily", 
+			"Format": "detail"
+		},
+		{
+			"Level": "error, fatal",
+			"Output": "another.err",
+			"Rotation":"daily", 
+			"Format": "detail"
+		}
+	]
+}
