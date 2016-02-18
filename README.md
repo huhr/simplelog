@@ -48,16 +48,23 @@ Format：指节点输出的日志格式，目前支持两种，detail和brife，
 
 ##### 使用
 ```
-	err := LoadConfiguration("config.json")
+import (
+	log "github.com/huhr/simplelog"
+)
+func main() {
+	err := log.LoadConfiguration("config.json")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
-	logger, err := GetLogger("another")
+	log.Debug("Hello root logger")
+
+	// use multi logger
+	logger, err := log.GetLogger("another")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
 	logger.Debug("Hello another logger")
-	Debug("Hello root logger")
+}
 ```
