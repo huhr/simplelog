@@ -36,11 +36,16 @@ func Fatal(format string, v ...interface{}) {
 }
 
 // load configration from json file
-func LoadConfiguration(filename string) error {
+func LoadConfigFile(filename string) error {
 	cfgs, err := readConfiguration(filename)
 	if err != nil {
 		return err
 	}
+	return LoadConfigMap(cfgs)
+}
+
+// support config map
+func LoadConfigMap(cfgs map[string][]map[string]string) error {
 	if _, ok := cfgs["root"]; !ok {
 		return errors.New("log is missing")
 	}
@@ -55,7 +60,7 @@ func LoadConfiguration(filename string) error {
 }
 
 // read config file into map
-func readConfiguration(filename string) (cfg map[string][]map[string]string, err error) {
+func readConfiguration(filename string) (cfgs map[string][]map[string]string, err error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -65,11 +70,11 @@ func readConfiguration(filename string) (cfg map[string][]map[string]string, err
 	if err != nil {
 		return nil, err
 	}
-	err = json.Unmarshal(src, &cfg)
+	err = json.Unmarshal(src, &cfgs)
 	if err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return cfgs, nil
 }
 
 // 根据名称获取一个logger实例

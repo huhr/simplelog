@@ -10,7 +10,7 @@ import (
 
 func TestLog(t *testing.T) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
-	err := LoadConfiguration("config.json")
+	err := LoadConfigFile("config.json")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
