@@ -52,7 +52,7 @@ import (
 	log "github.com/huhr/simplelog"
 )
 func main() {
-	err := log.LoadConfiguration("config.json")
+	err := log.LoadConfigFile("config.json")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
